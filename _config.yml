@@ -1,6 +1,6 @@
 title: Voice Model Parameter Comparison
 description: Compare audio samples with different parameters.
-baseurl: ""
+baseurl: "/ABSound"
 url: ""
 plugins:
   - jekyll-feed
