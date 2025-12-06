@@ -7,9 +7,28 @@ title: Reference Audio
 <p>Listen to the target voice to refresh your memory.</p>
 
 <div class="reference-player">
-    <h3>Original Sample</h3>
-    <audio controls>
-        <source src="{{ '/assets/audio/reference/original.wav' | relative_url }}" type="audio/wav">
+    <h3>Select Reference Audio</h3>
+    <select id="ref-selector" onchange="playReference(this.value)">
+        <option value="" disabled selected>Select a file...</option>
+        {% for file in site.data.reference_files %}
+        <option value="{{ file }}">{{ file }}</option>
+        {% endfor %}
+    </select>
+
+    <br><br>
+
+    <audio id="ref-audio" controls>
+        <source src="" type="audio/wav">
         Your browser does not support the audio element.
     </audio>
 </div>
+
+<script>
+    function playReference(filename) {
+        const player = document.getElementById('ref-audio');
+        const baseUrl = "{{ site.baseurl }}";
+        player.src = `${baseUrl}/assets/audio/reference/${filename}`;
+        player.load();
+        player.play();
+    }
+</script>

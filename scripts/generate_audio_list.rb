@@ -3,28 +3,31 @@ require 'yaml'
 require 'json'
 
 # Configuration
+# Configuration
 AUDIO_DIR = File.join(Dir.pwd, 'assets', 'audio')
+REF_DIR = File.join(AUDIO_DIR, 'reference')
 DATA_FILE = File.join(Dir.pwd, '_data', 'audio_files.yml')
+REF_DATA_FILE = File.join(Dir.pwd, '_data', 'reference_files.yml')
 
-puts "Scanning for audio files in #{AUDIO_DIR}..."
+puts "Scanning for audio files..."
 
 # Ensure _data directory exists
 Dir.mkdir(File.join(Dir.pwd, '_data')) unless File.directory?(File.join(Dir.pwd, '_data'))
 
-if File.directory?(AUDIO_DIR)
-  # Find all .wav files
-  audio_files = Dir.entries(AUDIO_DIR).select do |f|
-    File.file?(File.join(AUDIO_DIR, f)) && f.end_with?('.wav')
+def scan_wavs(dir)
+  return [] unless File.directory?(dir)
+  Dir.entries(dir).select do |f|
+    File.file?(File.join(dir, f)) && f.end_with?('.wav')
   end.sort
-
-  # Write to YAML file
-  File.open(DATA_FILE, 'w') do |file|
-    file.write(audio_files.to_yaml)
-  end
-
-  puts "Successfully generated #{DATA_FILE} with #{audio_files.length} files."
-  puts "Files found: #{audio_files.inspect}"
-else
-  puts "Warning: Audio directory not found at #{AUDIO_DIR}"
-  File.open(DATA_FILE, 'w') { |f| f.write([].to_yaml) }
 end
+
+# Scan main audio files
+audio_files = scan_wavs(AUDIO_DIR)
+File.open(DATA_FILE, 'w') { |f| f.write(audio_files.to_yaml) }
+puts "Generated #{DATA_FILE} with #{audio_files.length} files."
+
+# Scan reference files
+ref_files = scan_wavs(REF_DIR)
+File.open(REF_DATA_FILE, 'w') { |f| f.write(ref_files.to_yaml) }
+puts "Generated #{REF_DATA_FILE} with #{ref_files.length} files."
+
