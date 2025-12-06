@@ -69,9 +69,19 @@ class Tournament {
 
         // Filter out history items that reference non-existent samples
         // This handles cases where files are deleted or renamed
+        const validIds = new Set(this.samples.map(s => s.id));
+
         if (state.history) {
-            const validIds = new Set(this.samples.map(s => s.id));
             state.history = state.history.filter(m => validIds.has(m.a) && validIds.has(m.b));
+        }
+
+        if (state.matches) {
+            state.matches = state.matches.filter(m => validIds.has(m.a) && validIds.has(m.b));
+        }
+
+        // Sync index to history length (assuming sequential play)
+        if (state.history && state.matches) {
+            state.currentMatchIndex = state.history.length;
         }
 
         return state;
@@ -219,6 +229,16 @@ class ComparisonUI {
         // Load Audio
         const sampleA = this.tournament.samples.find(s => s.id === match.a);
         const sampleB = this.tournament.samples.find(s => s.id === match.b);
+
+        if (!sampleA || !sampleB) {
+            console.error("Missing sample for match:", match);
+            // Auto-skip this match if data is corrupted
+            this.tournament.recordResult(match.id, 'tie'); // Record as tie to move on? Or just skip?
+            // Actually, better to just skip without recording if possible, but recordResult increments index.
+            // Let's just try to load the next one recursively.
+            this.loadNextMatch();
+            return;
+        }
 
         this.elements.audioA.src = sampleA.file;
         this.elements.audioB.src = sampleB.file;
