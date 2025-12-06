@@ -46,18 +46,20 @@ class AudioParser {
 class Tournament {
     constructor(samples) {
         this.samples = samples;
-        this.storageKey = 'absound_tournament_v1';
+        this.storageKey = 'absound_tournament_v2'; // Bump version for new logic
         this.state = this.loadState() || this.initializeState();
+        this.maxMatches = 100; // Target number of matches
     }
 
     initializeState() {
-        const pairs = this.generatePairs();
-        const sortedPairs = this.prioritizePairs(pairs);
+        // Start with a random champion
+        const randomStart = this.samples[Math.floor(Math.random() * this.samples.length)];
 
         return {
-            matches: sortedPairs, // Queue of matches
-            history: [],          // Completed matches
-            currentMatchIndex: 0
+            champion: randomStart.id,
+            matchesPlayed: 0,
+            history: [],
+            currentMatch: null // Store current match details
         };
     }
 
@@ -67,21 +69,16 @@ class Tournament {
 
         const state = JSON.parse(stored);
 
-        // Filter out history items that reference non-existent samples
-        // This handles cases where files are deleted or renamed
+        // Basic validation
         const validIds = new Set(this.samples.map(s => s.id));
+
+        // If champion is missing/invalid, reset
+        if (!state.champion || !validIds.has(state.champion)) {
+            return null;
+        }
 
         if (state.history) {
             state.history = state.history.filter(m => validIds.has(m.a) && validIds.has(m.b));
-        }
-
-        if (state.matches) {
-            state.matches = state.matches.filter(m => validIds.has(m.a) && validIds.has(m.b));
-        }
-
-        // Sync index to history length (assuming sequential play)
-        if (state.history && state.matches) {
-            state.currentMatchIndex = state.history.length;
         }
 
         return state;
@@ -91,80 +88,111 @@ class Tournament {
         localStorage.setItem(this.storageKey, JSON.stringify(this.state));
     }
 
-    generatePairs() {
-        const pairs = [];
-        for (let i = 0; i < this.samples.length; i++) {
-            for (let j = i + 1; j < this.samples.length; j++) {
-                pairs.push({
-                    id: `${this.samples[i].id}_vs_${this.samples[j].id}`,
-                    a: this.samples[i].id,
-                    b: this.samples[j].id,
-                    winner: null,
-                    timestamp: null
-                });
-            }
+    // Helper to get distance between two samples
+    getDistance(idA, idB) {
+        const sA = this.samples.find(s => s.id === idA);
+        const sB = this.samples.find(s => s.id === idB);
+        if (!sA || !sB) return Infinity;
+
+        // Simple Euclidean distance on normalized params (approximate since ranges are small)
+        const dEx = sA.exaggeration - sB.exaggeration;
+        const dCfg = sA.cfg - sB.cfg;
+        const dTemp = sA.temp - sB.temp;
+        return Math.sqrt(dEx * dEx + dCfg * dCfg + dTemp * dTemp);
+    }
+
+    getChallenger() {
+        const championId = this.state.champion;
+        const matchesPlayed = this.state.matchesPlayed;
+
+        // Filter out samples we've already compared against this SPECIFIC champion 
+        // (to avoid repeating the same pair immediately)
+        const playedAgainstChamp = new Set(
+            this.state.history
+                .filter(m => m.a === championId || m.b === championId)
+                .map(m => m.a === championId ? m.b : m.a)
+        );
+
+        const candidates = this.samples.filter(s => s.id !== championId && !playedAgainstChamp.has(s.id));
+
+        if (candidates.length === 0) {
+            // If we've exhausted all candidates for this champion, pick ANY random one
+            return this.samples.find(s => s.id !== championId);
         }
-        return pairs;
-    }
 
-    prioritizePairs(pairs) {
-        // Normalize parameters to 0-1 range for fair distance calculation
-        const ranges = this.getRanges();
+        // Phase 1: Exploration (First 20 matches)
+        // Goal: Find the general region of preference by testing against very different samples
+        if (matchesPlayed < 20) {
+            // Sort by distance DESCENDING (furthest first)
+            candidates.sort((a, b) => this.getDistance(championId, b.id) - this.getDistance(championId, a.id));
+            // Pick from top 20% to ensure variety
+            const poolSize = Math.max(1, Math.floor(candidates.length * 0.2));
+            return candidates[Math.floor(Math.random() * poolSize)];
+        }
 
-        const normalize = (val, param) => {
-            const r = ranges[param];
-            if (r.max === r.min) return 0;
-            return (val - r.min) / (r.max - r.min);
-        };
+        // Phase 2: Refinement (Remaining matches)
+        // Goal: Fine-tune parameters by testing against neighbors
+        else {
+            // Occasional Sanity Check (Every 10th match)
+            if (matchesPlayed % 10 === 0) {
+                return candidates[Math.floor(Math.random() * candidates.length)];
+            }
 
-        const getSample = (id) => this.samples.find(s => s.id === id);
-
-        const distance = (pair) => {
-            const sA = getSample(pair.a);
-            const sB = getSample(pair.b);
-
-            const dEx = normalize(sA.exaggeration, 'exaggeration') - normalize(sB.exaggeration, 'exaggeration');
-            const dCfg = normalize(sA.cfg, 'cfg') - normalize(sB.cfg, 'cfg');
-            const dTemp = normalize(sA.temp, 'temp') - normalize(sB.temp, 'temp');
-
-            return Math.sqrt(dEx * dEx + dCfg * dCfg + dTemp * dTemp);
-        };
-
-        // Sort by distance descending (most different first)
-        return pairs.sort((a, b) => distance(b) - distance(a));
-    }
-
-    getRanges() {
-        // Helper to get min/max from samples
-        const params = ['exaggeration', 'cfg', 'temp'];
-        const ranges = {};
-        params.forEach(p => {
-            const vals = this.samples.map(s => s[p]);
-            ranges[p] = { min: Math.min(...vals), max: Math.max(...vals) };
-        });
-        return ranges;
+            // Sort by distance ASCENDING (closest first)
+            candidates.sort((a, b) => this.getDistance(championId, a.id) - this.getDistance(championId, b.id));
+            // Pick from top 5 closest
+            const poolSize = Math.min(5, candidates.length);
+            return candidates[Math.floor(Math.random() * poolSize)];
+        }
     }
 
     getNextMatch() {
-        if (this.state.currentMatchIndex >= this.state.matches.length) {
+        if (this.state.matchesPlayed >= this.maxMatches) {
             return null; // Tournament complete
         }
-        return this.state.matches[this.state.currentMatchIndex];
+
+        // If we already generated a match but haven't played it (e.g. reload), return it
+        if (this.state.currentMatch) {
+            return this.state.currentMatch;
+        }
+
+        const challenger = this.getChallenger();
+        if (!challenger) return null; // Should not happen
+
+        const match = {
+            id: `${this.state.champion}_vs_${challenger.id}_${Date.now()}`,
+            a: this.state.champion,
+            b: challenger.id,
+            winner: null,
+            timestamp: null
+        };
+
+        this.state.currentMatch = match;
+        this.saveState();
+        return match;
     }
 
-    recordResult(matchId, winnerId) { // winnerId can be sampleId or 'tie'
-        const matchIndex = this.state.matches.findIndex(m => m.id === matchId);
-        if (matchIndex === -1) return;
+    recordResult(matchId, winnerId) {
+        if (!this.state.currentMatch || this.state.currentMatch.id !== matchId) return;
 
-        const match = this.state.matches[matchIndex];
+        const match = this.state.currentMatch;
         match.winner = winnerId;
         match.timestamp = Date.now();
 
+        // Update Champion Logic
+        // If Tie: Champion stays (Defender's advantage)
+        // If Challenger wins: Challenger becomes Champion
+        if (winnerId !== 'tie' && winnerId !== this.state.champion) {
+            this.state.champion = winnerId;
+            console.log("New Champion:", this.state.champion);
+        }
+
         this.state.history.push(match);
-        this.state.currentMatchIndex++;
+        this.state.matchesPlayed++;
+        this.state.currentMatch = null; // Clear current match to generate new one next time
         this.saveState();
 
-        console.log(`Match recorded: ${matchId}, Winner: ${winnerId}`);
+        console.log(`Match recorded. Champion is now: ${this.state.champion}`);
     }
 
     reset() {
@@ -183,17 +211,17 @@ class Tournament {
             const newState = JSON.parse(jsonString);
 
             // Basic validation
-            if (!newState.matches || !newState.history) {
+            if (!newState.champion || typeof newState.matchesPlayed !== 'number') {
                 throw new Error("Invalid state format");
             }
 
-            // Filter invalid matches (safety check)
             const validIds = new Set(this.samples.map(s => s.id));
+            if (!validIds.has(newState.champion)) {
+                throw new Error("Invalid champion ID");
+            }
+
             if (newState.history) {
                 newState.history = newState.history.filter(m => validIds.has(m.a) && validIds.has(m.b));
-            }
-            if (newState.matches) {
-                newState.matches = newState.matches.filter(m => validIds.has(m.a) && validIds.has(m.b));
             }
 
             this.state = newState;
@@ -234,8 +262,32 @@ class ComparisonUI {
         this.elements.voteB.addEventListener('click', () => this.handleVote('b'));
         this.elements.voteTie.addEventListener('click', () => this.handleVote('tie'));
 
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (this.elements.ui.classList.contains('hidden')) return; // Only if active
+
+            switch (e.key.toLowerCase()) {
+                case 'a':
+                case '1':
+                    this.handleVote('a');
+                    break;
+                case 'b':
+                case '2':
+                    this.handleVote('b');
+                    break;
+                case 't':
+                case '3':
+                    this.handleVote('tie');
+                    break;
+                case ' ':
+                    e.preventDefault(); // Prevent scrolling
+                    this.togglePlay();
+                    break;
+            }
+        });
+
         // Check if we should auto-start (if in progress)
-        if (this.tournament.state.currentMatchIndex > 0 && this.tournament.getNextMatch()) {
+        if (this.tournament.state.matchesPlayed > 0 && this.tournament.getNextMatch()) {
             this.start();
         }
 
@@ -348,12 +400,27 @@ class ComparisonUI {
         this.elements.audioA.onerror = () => handleError(this.elements.audioA, 'Sample A');
         this.elements.audioB.onerror = () => handleError(this.elements.audioB, 'Sample B');
 
+        // Enforce mutual exclusivity
+        this.elements.audioA.onplay = () => {
+            this.elements.audioB.pause();
+            if (window.viz && window.viz.currentAudio) {
+                window.viz.currentAudio.pause();
+            }
+        };
+
+        this.elements.audioB.onplay = () => {
+            this.elements.audioA.pause();
+            if (window.viz && window.viz.currentAudio) {
+                window.viz.currentAudio.pause();
+            }
+        };
+
         this.updateProgress();
     }
 
     updateProgress() {
-        const current = this.tournament.state.currentMatchIndex + 1;
-        const total = this.tournament.state.matches.length;
+        const current = this.tournament.state.matchesPlayed + 1;
+        const total = this.tournament.maxMatches;
         const percent = Math.round((current / total) * 100);
 
         const display = document.getElementById('progress-display');
@@ -377,6 +444,21 @@ class ComparisonUI {
 
         // Load next
         this.loadNextMatch();
+    }
+
+    togglePlay() {
+        const audioA = this.elements.audioA;
+        const audioB = this.elements.audioB;
+
+        if (!audioA.paused) {
+            audioA.pause();
+            audioB.play();
+        } else if (!audioB.paused) {
+            audioB.pause();
+            // Both paused
+        } else {
+            audioA.play();
+        }
     }
 
     showCompletion() {
@@ -445,6 +527,12 @@ class ScoringSystem {
             if (r.wins + r.losses + r.ties === 0) return;
 
             const row = document.createElement('tr');
+
+            // Add rank classes for styling
+            if (index === 0) row.classList.add('rank-1');
+            if (index === 1) row.classList.add('rank-2');
+            if (index === 2) row.classList.add('rank-3');
+
             row.innerHTML = `
                 <td>${index + 1}</td>
                 <td>${r.id}</td>
@@ -502,6 +590,40 @@ class Visualization {
         };
 
         Plotly.newPlot(this.containerId, data, layout);
+
+        // Click Interaction
+        const plot = document.getElementById(this.containerId);
+        plot.on('plotly_click', (data) => {
+            if (data.points.length > 0) {
+                const point = data.points[0];
+                // Extract ID from hover text (hacky but works given our data structure)
+                // text format: "id <br>Score: score"
+                const id = point.text.split(' <br>')[0];
+                this.playSample(id);
+            }
+        });
+    }
+
+    playSample(id) {
+        // Stop currently playing visualization audio
+        if (this.currentAudio) {
+            this.currentAudio.pause();
+            this.currentAudio.currentTime = 0;
+        }
+
+        // Also stop comparison players if they are playing
+        if (window.ui && window.ui.elements) {
+            window.ui.elements.audioA.pause();
+            window.ui.elements.audioB.pause();
+        }
+
+        const sample = this.scoring.tournament.samples.find(s => s.id === id);
+        if (sample) {
+            const audio = new Audio(sample.file);
+            this.currentAudio = audio;
+            audio.play().catch(e => console.error("Play failed:", e));
+            console.log("Playing:", id);
+        }
     }
 }
 
