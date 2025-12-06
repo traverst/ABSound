@@ -1,0 +1,33 @@
+---
+layout: default
+title: Comparison
+---
+
+<div class="comparison-container">
+    <div id="controls" class="controls">
+        <button id="start-btn" class="btn primary">Start Comparison</button>
+    </div>
+
+    <div id="comparison-ui" class="hidden">
+        <div class="pair-display">
+            <div class="sample-box">
+                <h3>Sample A</h3>
+                <audio id="audio-a" controls></audio>
+            </div>
+            <div class="sample-box">
+                <h3>Sample B</h3>
+                <audio id="audio-b" controls></audio>
+            </div>
+        </div>
+
+        <div class="parameters-display">
+            <p><strong>Parameters:</strong> <span id="params-display">Hidden during blind test</span></p>
+        </div>
+
+        <div class="voting-buttons">
+            <button id="vote-a" class="btn vote-btn">A is Better</button>
+            <button id="vote-tie" class="btn vote-btn secondary">Tie</button>
+            <button id="vote-b" class="btn vote-btn">B is Better</button>
+        </div>
+    </div>
+</div>
