@@ -21,6 +21,7 @@
     {{ content }}
   </main>
   <script>
+    window.BASE_URL = "{{ site.baseurl }}";
     window.AUDIO_FILES = {{ site.data.audio_files | jsonify }};
   </script>
   <script src="{{ '/assets/js/main.js' | relative_url }}"></script>

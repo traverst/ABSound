@@ -12,9 +12,10 @@ class AudioParser {
             const match = filename.match(/sample_e([\d\.]+)_cfg([\d\.]+)_t([\d\.]+)\.wav/);
 
             if (match) {
+                const baseUrl = window.BASE_URL || '';
                 return {
                     id: filename.replace('.wav', ''),
-                    file: `/assets/audio/${filename}`,
+                    file: `${baseUrl}/assets/audio/${filename}`,
                     exaggeration: parseFloat(match[1]),
                     cfg: parseFloat(match[2]),
                     temp: parseFloat(match[3])
