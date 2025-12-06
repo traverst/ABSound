@@ -21,8 +21,8 @@ def scan_audio(dir, extensions = ['.wav'])
   end.sort
 end
 
-# Scan main audio files (WAV and AIFF)
-audio_files = scan_audio(AUDIO_DIR, ['.wav', '.aiff', '.aif'])
+# Scan main audio files (WAV only now)
+audio_files = scan_audio(AUDIO_DIR, ['.wav'])
 File.open(DATA_FILE, 'w') { |f| f.write(audio_files.to_yaml) }
 puts "Generated #{DATA_FILE} with #{audio_files.length} files."
 

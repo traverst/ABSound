@@ -8,13 +8,13 @@ class AudioParser {
 
     parseFiles() {
         return this.files.map(filename => {
-            // Regex to match: (sample|test)_e(float)_cfg(float)_t(float).(wav|aiff|aif)
-            const match = filename.match(/(?:sample|test)_e([\d\.]+)_cfg([\d\.]+)_t([\d\.]+)\.(?:wav|aiff|aif)$/i);
+            // Regex to match: (sample|test)_e(float)_cfg(float)_t(float).wav
+            const match = filename.match(/(?:sample|test)_e([\d\.]+)_cfg([\d\.]+)_t([\d\.]+)\.wav$/i);
 
             if (match) {
                 const baseUrl = window.BASE_URL || '';
                 return {
-                    id: filename.replace(/\.(wav|aiff|aif)$/i, ''),
+                    id: filename.replace(/\.wav$/i, ''),
                     file: `${baseUrl}/assets/audio/${filename}`,
                     exaggeration: parseFloat(match[1]),
                     cfg: parseFloat(match[2]),
