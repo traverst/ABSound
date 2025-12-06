@@ -390,7 +390,11 @@ class Visualization {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    if (window.AUDIO_FILES) {
+    console.log("Initializing App...");
+    console.log("BASE_URL:", window.BASE_URL);
+    console.log("AUDIO_FILES:", window.AUDIO_FILES);
+
+    if (window.AUDIO_FILES && window.AUDIO_FILES.length > 0) {
         const parser = new AudioParser(window.AUDIO_FILES);
         console.log("Parsed Audio Files:", parser.parsed);
 
@@ -448,5 +452,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 `Generated ${window.tournament.state.matches.length} pairs.`;
             welcome.after(debugInfo);
         }
+    } else {
+        console.error("CRITICAL ERROR: window.AUDIO_FILES is missing or empty!");
+        const container = document.querySelector('.comparison-container') || document.body;
+        container.innerHTML = `<div style="color: red; padding: 20px; border: 1px solid red;">
+            <h2>Initialization Error</h2>
+            <p>No audio files found. Please check the console for details.</p>
+            <p>BASE_URL: ${window.BASE_URL}</p>
+        </div>`;
     }
 });
