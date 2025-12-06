@@ -63,7 +63,18 @@ class Tournament {
 
     loadState() {
         const stored = localStorage.getItem(this.storageKey);
-        return stored ? JSON.parse(stored) : null;
+        if (!stored) return null;
+
+        const state = JSON.parse(stored);
+
+        // Filter out history items that reference non-existent samples
+        // This handles cases where files are deleted or renamed
+        if (state.history) {
+            const validIds = new Set(this.samples.map(s => s.id));
+            state.history = state.history.filter(m => validIds.has(m.a) && validIds.has(m.b));
+        }
+
+        return state;
     }
 
     saveState() {
@@ -297,6 +308,11 @@ class ScoringSystem {
 
         // Tally history
         this.tournament.state.history.forEach(match => {
+            // Skip matches involving deleted/missing samples
+            if (!scores[match.a] || !scores[match.b]) {
+                return;
+            }
+
             if (match.winner === 'tie') {
                 scores[match.a].ties++;
                 scores[match.b].ties++;
