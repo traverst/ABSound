@@ -26,13 +26,13 @@ bundle exec jekyll serve
 Access the site at [http://localhost:4000](http://localhost:4000).
 
 ## Adding Audio Samples
-1. Place your `.wav` files in `assets/audio/`.
-2. **Naming Convention**: Files must follow this exact format to be parsed correctly:
-   ```
-   sample_e{exaggeration}_cfg{cfg}_t{temperature}.wav
-   ```
-   Example: `sample_e0.05_cfg0.25_t0.12.wav`
-3. Update the file list in `_data/audio_files.yml`:
+- **Audio Files**: Place your generated audio samples in `assets/audio/`.
+    - Supported formats: `.wav`, `.aiff`, `.aif`
+    - Naming convention: `sample_e{exaggeration}_cfg{cfg}_t{temp}.wav` (or `test_...`)
+    - Example: `sample_e0.05_cfg0.25_t0.12.aiff`
+- **Reference Audio**: Place reference audio files in `assets/audio/reference/`.
+    - Supported formats: `.wav`
+- **Update File List**: After adding files, update `_data/audio_files.yml`:
    ```yaml
    - sample_e0.05_cfg0.25_t0.12.wav
    - sample_e0.10_cfg0.40_t0.07.wav

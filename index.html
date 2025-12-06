@@ -22,6 +22,7 @@ title: Comparison
 
         <div class="parameters-display">
             <p><strong>Parameters:</strong> <span id="params-display">Hidden during blind test</span></p>
+            <p id="progress-display" style="margin-top: 10px; color: #666; font-size: 0.9em;"></p>
         </div>
 
         <div class="voting-buttons">
@@ -29,5 +30,11 @@ title: Comparison
             <button id="vote-tie" class="btn vote-btn secondary">Tie</button>
             <button id="vote-b" class="btn vote-btn">B is Better</button>
         </div>
+    </div>
+
+    <div id="completion-msg" class="hidden">
+        <h2>Comparison Complete!</h2>
+        <p>You have finished all available pairs.</p>
+        <button onclick="window.tournament.reset(); location.reload();" class="btn secondary">Reset Progress</button>
     </div>
 </div>
