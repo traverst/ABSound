@@ -3,38 +3,76 @@ layout: default
 title: Comparison
 ---
 
-<div class="comparison-container">
-    <div id="controls" class="controls">
-        <button id="start-btn" class="btn primary">Start Comparison</button>
-    </div>
+<div class="tabs">
+    <button class="tab-btn active" data-tab="compare">Compare</button>
+    <button class="tab-btn" data-tab="leaderboard">Leaderboard</button>
+    <button class="tab-btn" data-tab="visualize">Visualize</button>
+</div>
 
-    <div id="comparison-ui" class="hidden">
-        <div class="pair-display">
-            <div class="sample-box">
-                <h3>Sample A</h3>
-                <audio id="audio-a" controls></audio>
+<div id="tab-compare" class="tab-content active">
+    <div class="comparison-container">
+        <div id="controls" class="controls">
+            <button id="start-btn" class="btn primary">Start Comparison</button>
+        </div>
+
+        <div id="comparison-ui" class="hidden">
+            <div class="pair-display">
+                <div class="sample-box">
+                    <h3>Sample A</h3>
+                    <audio id="audio-a" controls></audio>
+                </div>
+                <div class="sample-box">
+                    <h3>Sample B</h3>
+                    <audio id="audio-b" controls></audio>
+                </div>
             </div>
-            <div class="sample-box">
-                <h3>Sample B</h3>
-                <audio id="audio-b" controls></audio>
+
+            <div class="parameters-display">
+                <p><strong>Parameters:</strong> <span id="params-display">Hidden during blind test</span></p>
+                <p id="progress-display" style="margin-top: 10px; color: #666; font-size: 0.9em;"></p>
+            </div>
+
+            <div class="voting-buttons">
+                <button id="vote-a" class="btn vote-btn">A is Better</button>
+                <button id="vote-tie" class="btn vote-btn secondary">Tie</button>
+                <button id="vote-b" class="btn vote-btn">B is Better</button>
             </div>
         </div>
 
-        <div class="parameters-display">
-            <p><strong>Parameters:</strong> <span id="params-display">Hidden during blind test</span></p>
-            <p id="progress-display" style="margin-top: 10px; color: #666; font-size: 0.9em;"></p>
-        </div>
-
-        <div class="voting-buttons">
-            <button id="vote-a" class="btn vote-btn">A is Better</button>
-            <button id="vote-tie" class="btn vote-btn secondary">Tie</button>
-            <button id="vote-b" class="btn vote-btn">B is Better</button>
+        <div id="completion-msg" class="hidden">
+            <h2>Comparison Complete!</h2>
+            <p>You have finished all available pairs.</p>
+            <button onclick="window.tournament.reset(); location.reload();" class="btn secondary">Reset
+                Progress</button>
         </div>
     </div>
+</div>
 
-    <div id="completion-msg" class="hidden">
-        <h2>Comparison Complete!</h2>
-        <p>You have finished all available pairs.</p>
-        <button onclick="window.tournament.reset(); location.reload();" class="btn secondary">Reset Progress</button>
+<div id="tab-leaderboard" class="tab-content">
+    <div class="leaderboard-container">
+        <h2>Leaderboard</h2>
+        <table id="leaderboard">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Sample</th>
+                    <th>Exag</th>
+                    <th>CFG</th>
+                    <th>Temp</th>
+                    <th>Score</th>
+                    <th>W / L / T</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Rows injected by JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="tab-visualize" class="tab-content">
+    <div class="visualization-container">
+        <h2>Parameter Landscape</h2>
+        <div id="visualization" style="width:100%; height:600px;"></div>
     </div>
 </div>

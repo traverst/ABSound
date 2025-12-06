@@ -254,6 +254,120 @@ class ComparisonUI {
     }
 }
 
+class ScoringSystem {
+    constructor(tournament) {
+        this.tournament = tournament;
+        this.tableBody = document.querySelector('#leaderboard tbody');
+    }
+
+    calculateScores() {
+        const scores = {};
+
+        // Initialize
+        this.tournament.samples.forEach(s => {
+            scores[s.id] = {
+                id: s.id,
+                sample: s,
+                wins: 0,
+                losses: 0,
+                ties: 0,
+                score: 0
+            };
+        });
+
+        // Tally history
+        this.tournament.state.history.forEach(match => {
+            if (match.winner === 'tie') {
+                scores[match.a].ties++;
+                scores[match.b].ties++;
+            } else if (match.winner === match.a) {
+                scores[match.a].wins++;
+                scores[match.b].losses++;
+            } else if (match.winner === match.b) {
+                scores[match.b].wins++;
+                scores[match.a].losses++;
+            }
+        });
+
+        // Calculate final score
+        Object.values(scores).forEach(s => {
+            s.score = s.wins + (s.ties * 0.5);
+        });
+
+        return Object.values(scores).sort((a, b) => b.score - a.score);
+    }
+
+    updateLeaderboard() {
+        if (!this.tableBody) return;
+
+        const rankings = this.calculateScores();
+        this.tableBody.innerHTML = '';
+
+        rankings.forEach((r, index) => {
+            // Only show if they have played at least one match (optional, but keeps it clean)
+            if (r.wins + r.losses + r.ties === 0) return;
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${r.id}</td>
+                <td>${r.sample.exaggeration}</td>
+                <td>${r.sample.cfg}</td>
+                <td>${r.sample.temp}</td>
+                <td><strong>${r.score.toFixed(1)}</strong></td>
+                <td>${r.wins} / ${r.losses} / ${r.ties}</td>
+            `;
+            this.tableBody.appendChild(row);
+        });
+    }
+}
+
+class Visualization {
+    constructor(scoringSystem) {
+        this.scoring = scoringSystem;
+        this.containerId = 'visualization';
+    }
+
+    update() {
+        const scores = this.scoring.calculateScores();
+
+        // Prepare data for Plotly
+        const x = scores.map(s => s.sample.exaggeration);
+        const y = scores.map(s => s.sample.cfg);
+        const z = scores.map(s => s.sample.temp);
+        const c = scores.map(s => s.score);
+        const text = scores.map(s => `${s.id} <br>Score: ${s.score}`);
+
+        const data = [{
+            x: x,
+            y: y,
+            z: z,
+            mode: 'markers',
+            marker: {
+                size: 8,
+                color: c,
+                colorscale: 'Viridis',
+                opacity: 0.8,
+                colorbar: { title: 'Score' }
+            },
+            type: 'scatter3d',
+            text: text,
+            hoverinfo: 'text'
+        }];
+
+        const layout = {
+            margin: { l: 0, r: 0, b: 0, t: 0 },
+            scene: {
+                xaxis: { title: 'Exaggeration' },
+                yaxis: { title: 'CFG' },
+                zaxis: { title: 'Temperature' }
+            }
+        };
+
+        Plotly.newPlot(this.containerId, data, layout);
+    }
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     if (window.AUDIO_FILES) {
@@ -264,8 +378,43 @@ document.addEventListener('DOMContentLoaded', () => {
         window.tournament = new Tournament(parser.parsed);
         console.log("Tournament Initialized:", window.tournament);
 
+        // Initialize Scoring
+        window.scoring = new ScoringSystem(window.tournament);
+        window.scoring.updateLeaderboard();
+
+        // Initialize Visualization
+        window.viz = new Visualization(window.scoring);
+        window.viz.update();
+
         // Initialize UI
         window.ui = new ComparisonUI(window.tournament);
+
+        // Hook into voting to update leaderboard and visualization
+        const originalHandleVote = window.ui.handleVote.bind(window.ui);
+        window.ui.handleVote = (winner) => {
+            originalHandleVote(winner);
+            window.scoring.updateLeaderboard();
+            window.viz.update();
+        };
+
+        // Tab Switching Logic
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Remove active class from all
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                // Add active class to clicked
+                btn.classList.add('active');
+                const tabId = btn.getAttribute('data-tab');
+                document.getElementById(`tab-${tabId}`).classList.add('active');
+
+                // Resize Plotly if switching to visualize tab
+                if (tabId === 'visualize' && window.viz) {
+                    window.viz.update(); // Re-render/resize
+                }
+            });
+        });
 
         // Temporary: Display parsed data on home page for verification
         const welcome = document.getElementById('welcome');
