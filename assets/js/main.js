@@ -216,6 +216,26 @@ class ComparisonUI {
         this.elements.audioA.load();
         this.elements.audioB.load();
 
+        // Error handling
+        const handleError = (player, label) => {
+            const err = player.error;
+            let msg = 'Unknown error';
+            if (err) {
+                switch (err.code) {
+                    case 1: msg = 'Aborted'; break;
+                    case 2: msg = 'Network Error'; break;
+                    case 3: msg = 'Decoding Error'; break;
+                    case 4: msg = 'Source Not Supported'; break;
+                }
+            }
+            console.error(`Error loading ${label}: ${player.src}`, err);
+            // Optional: Alert user or show on UI
+            // alert(`Error loading ${label}: ${msg}\n${player.src}`);
+        };
+
+        this.elements.audioA.onerror = () => handleError(this.elements.audioA, 'Sample A');
+        this.elements.audioB.onerror = () => handleError(this.elements.audioB, 'Sample B');
+
         this.updateProgress();
     }
 
