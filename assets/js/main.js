@@ -173,6 +173,37 @@ class Tournament {
         this.saveState();
         console.log("Tournament reset.");
     }
+
+    exportState() {
+        return JSON.stringify(this.state, null, 2);
+    }
+
+    importState(jsonString) {
+        try {
+            const newState = JSON.parse(jsonString);
+
+            // Basic validation
+            if (!newState.matches || !newState.history) {
+                throw new Error("Invalid state format");
+            }
+
+            // Filter invalid matches (safety check)
+            const validIds = new Set(this.samples.map(s => s.id));
+            if (newState.history) {
+                newState.history = newState.history.filter(m => validIds.has(m.a) && validIds.has(m.b));
+            }
+            if (newState.matches) {
+                newState.matches = newState.matches.filter(m => validIds.has(m.a) && validIds.has(m.b));
+            }
+
+            this.state = newState;
+            this.saveState();
+            return true;
+        } catch (e) {
+            console.error("Import failed:", e);
+            return false;
+        }
+    }
 }
 
 class ComparisonUI {
@@ -206,6 +237,56 @@ class ComparisonUI {
         // Check if we should auto-start (if in progress)
         if (this.tournament.state.currentMatchIndex > 0 && this.tournament.getNextMatch()) {
             this.start();
+        }
+
+        // Data Tab Listeners
+        const exportBtn = document.getElementById('export-btn');
+        const importBtn = document.getElementById('import-btn');
+        const importFile = document.getElementById('import-file');
+        const resetBtn = document.getElementById('reset-btn');
+
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                const data = this.tournament.exportState();
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `absound_export_${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        if (importBtn && importFile) {
+            importBtn.addEventListener('click', () => {
+                const file = importFile.files[0];
+                if (!file) {
+                    alert("Please select a file first.");
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const success = this.tournament.importState(e.target.result);
+                    if (success) {
+                        alert("Import successful! Reloading...");
+                        location.reload();
+                    } else {
+                        alert("Import failed. Check console for details.");
+                    }
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                if (confirm("Are you sure you want to delete all history? This cannot be undone.")) {
+                    this.tournament.reset();
+                    location.reload();
+                }
+            });
         }
     }
 
@@ -426,17 +507,11 @@ class Visualization {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("Initializing App...");
-    console.log("BASE_URL:", window.BASE_URL);
-    console.log("AUDIO_FILES:", window.AUDIO_FILES);
-
     if (window.AUDIO_FILES && window.AUDIO_FILES.length > 0) {
         const parser = new AudioParser(window.AUDIO_FILES);
-        console.log("Parsed Audio Files:", parser.parsed);
 
         // Initialize Tournament
         window.tournament = new Tournament(parser.parsed);
-        console.log("Tournament Initialized:", window.tournament);
 
         // Initialize Scoring
         window.scoring = new ScoringSystem(window.tournament);
@@ -488,13 +563,5 @@ document.addEventListener('DOMContentLoaded', () => {
                 `Generated ${window.tournament.state.matches.length} pairs.`;
             welcome.after(debugInfo);
         }
-    } else {
-        console.error("CRITICAL ERROR: window.AUDIO_FILES is missing or empty!");
-        const container = document.querySelector('.comparison-container') || document.body;
-        container.innerHTML = `<div style="color: red; padding: 20px; border: 1px solid red;">
-            <h2>Initialization Error</h2>
-            <p>No audio files found. Please check the console for details.</p>
-            <p>BASE_URL: ${window.BASE_URL}</p>
-        </div>`;
     }
 });
