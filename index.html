@@ -12,6 +12,22 @@ title: Comparison
 
 <div id="tab-compare" class="tab-content active">
     <div class="comparison-container">
+
+        <!-- Phase Control Bar -->
+        <div id="phase-control" class="phase-control hidden">
+            <div class="phase-info">
+                <span id="phase-label" class="phase-badge">Phase: Explore</span>
+                <span id="phase-desc">Finding broad preferences...</span>
+            </div>
+            <div class="phase-actions">
+                <div class="progress-container">
+                    <div id="phase-progress-bar" class="progress-bar" style="width: 0%"></div>
+                    <span id="phase-metric">0 matches</span>
+                </div>
+                <button id="next-phase-btn" class="btn secondary small">Next Phase &rarr;</button>
+            </div>
+        </div>
+
         <div id="controls" class="controls">
             <button id="start-btn" class="btn primary">Start Comparison</button>
         </div>
@@ -43,12 +59,60 @@ title: Comparison
         <div id="completion-msg" class="hidden">
             <h2>Comparison Complete!</h2>
             <p>You have finished all available pairs.</p>
+            <p><strong>Tip:</strong> Check the <strong>Leaderboard</strong> and <strong>Visualize</strong> tabs for
+                detailed analysis of your results!</p>
             <button onclick="window.tournament.reset(); location.reload();" class="btn secondary">Reset
                 Progress</button>
         </div>
     </div>
 </div>
 
+<div id="tab-about" class="tab-content">
+    <div class="card">
+        <h2>About This Comparison</h2>
+        <p>This tool helps you find the optimal parameters for the voice model using a <strong>User-Controlled Adaptive
+                Strategy</strong>.</p>
+
+        <h3>How It Works</h3>
+        <p>The comparison process is divided into three phases to efficiently narrow down your preference:</p>
+
+        <div class="phase-guide">
+            <h4>Phase 1: Explore (Blue)</h4>
+            <p><strong>Goal:</strong> Broadly explore the possibilities.</p>
+            <p><strong>Strategy:</strong> The system presents sounds that are <em>most different</em> from your current
+                favorite.</p>
+            <p><strong>Indicator:</strong> The <strong>Coverage</strong> bar shows how much of the parameter space
+                you've explored. When it's high (e.g., >80%), it means you've heard a good variety.</p>
+            <p><strong>Action:</strong> Click <strong>"Start Refinement"</strong> when you feel you've explored enough.
+            </p>
+
+            <h4>Phase 2: Refine (Purple)</h4>
+            <p><strong>Goal:</strong> Fine-tune your choice.</p>
+            <p><strong>Strategy:</strong> The system presents sounds that are <em>very similar</em> to your current
+                favorite (neighbors).</p>
+            <p><strong>Indicator:</strong> The <strong>Stability</strong> bar tracks how many times your favorite has
+                won consecutively. A score of <strong>5/5</strong> suggests you've found a solid winner.</p>
+            <p><strong>Action:</strong> Click <strong>"Start Showdown"</strong> when you are satisfied with the winner.
+            </p>
+
+            <h4>Phase 3: Showdown (Red)</h4>
+            <p><strong>Goal:</strong> Final verification.</p>
+            <p><strong>Strategy:</strong> A round-robin tournament between the top candidates found during your session.
+            </p>
+            <p><strong>Action:</strong> Complete the matches to see the final leaderboard.</p>
+            <p><strong>Tip:</strong> Check the <strong>Leaderboard</strong> and <strong>Visualize</strong> tabs for
+                detailed analysis of your results!</p>
+        </div>
+
+        <h3>Keyboard Shortcuts</h3>
+        <ul>
+            <li><strong>1 / A</strong>: Vote for Option A</li>
+            <li><strong>2 / B</strong>: Vote for Option B</li>
+            <li><strong>3 / T</strong>: Vote Tie</li>
+            <li><strong>Space</strong>: Play/Pause Audio</li>
+        </ul>
+    </div>
+</div>
 <div id="tab-leaderboard" class="tab-content">
     <div class="leaderboard-container">
         <h2>Leaderboard</h2>
@@ -56,6 +120,7 @@ title: Comparison
             <thead>
                 <tr>
                     <th>Rank</th>
+                    <th>Play</th>
                     <th>Sample</th>
                     <th>Exag</th>
                     <th>CFG</th>

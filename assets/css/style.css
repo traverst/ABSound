@@ -225,6 +225,123 @@ audio {
   border-color: var(--text-color);
 }
 
+.btn-play-small {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  transition: transform 0.2s;
+}
+
+.btn-play-small:hover {
+  transform: scale(1.1);
+  background: #2563eb;
+}
+
+/* Phase Controls */
+.phase-control {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.phase-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.phase-badge {
+  background: var(--accent-color);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.phase-desc {
+  color: var(--secondary-color);
+  font-size: 0.9rem;
+}
+
+.phase-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 200px;
+}
+
+.progress-bar {
+  height: 24px;
+  background: var(--success-color);
+  border-radius: 12px;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.bar-low {
+  background-color: #ef4444 !important;
+  /* Red */
+}
+
+.bar-med {
+  background-color: #eab308 !important;
+  /* Yellow */
+}
+
+.bar-high {
+  background-color: #22c55e !important;
+  /* Green */
+}
+
+.progress-container {
+  background: rgba(255, 255, 255, 0.1);
+  height: 24px;
+  border-radius: 12px;
+  width: 200px;
+  position: relative;
+  overflow: hidden;
+}
+
+#phase-metric {
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  z-index: 1;
+  line-height: 24px;
+  margin-left: 0;
+}
+
+.btn.small {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
 #vote-a:hover {
   border-color: var(--success-color);
   color: var(--success-color);

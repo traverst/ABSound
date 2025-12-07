@@ -10,6 +10,32 @@ A static site tool to compare audio samples generated with different parameters 
 - Ruby (version 2.7 or higher recommended)
 - Bundler
 
+## Strategy & Assessment Approach
+
+This project uses a **User-Controlled Adaptive Strategy** to efficiently find optimal parameters without requiring exhaustive pairwise comparisons (which would require >1700 matches).
+
+### The 3-Phase Approach
+
+1.  **Phase 1: Explore (Global Search)**
+    *   **Algorithm**: Farthest Point Sampling.
+    *   **Logic**: The system dynamically selects the sample that is *farthest* in parameter space from the current "Champion" and any recently played samples.
+    *   **Metric**: **Coverage**. Calculated as `1.0 - (Distance to Farthest Remaining Candidate / Max Possible Distance)`. This metric increases as the "holes" in the parameter space are filled.
+
+2.  **Phase 2: Refine (Local Search)**
+    *   **Algorithm**: Hill Climbing (Nearest Neighbors).
+    *   **Logic**: The system selects samples that are *closest* to the current Champion.
+    *   **Metric**: **Stability**. Tracks the number of consecutive wins for the current Champion. A score of 5/5 indicates a strong local optimum.
+
+3.  **Phase 3: Showdown (Verification)**
+    *   **Algorithm**: Round-Robin Tournament.
+    *   **Logic**: The top candidates found during the session (the current Champion + top historical performers) face off in a final bracket.
+    *   **Metric**: **Progress**. Percentage of showdown matches completed.
+
+### Assessment
+- **Subjective**: Users vote based on their preference (A, B, or Tie).
+- **Objective**: The system tracks the "Champion" state and visualizes the path through parameter space.
+- **Outcome**: A ranked leaderboard of parameters that best match the user's preference.
+
 ## Setup
 1. Clone the repository.
 2. Install dependencies:
@@ -39,15 +65,3 @@ Access the site at [http://localhost:4000](http://localhost:4000).
    ```
    *(Note: This manual step is required because static sites cannot list directory contents dynamically.)*
 
-## Development Stages
-- [x] **Stage 0**: Project Setup (Jekyll structure, config)
-- [x] **Stage 0.5**: Automatic Parameter Extraction (JS parser, data injection)
-- [ ] **Stage 1**: Core UI Structure (Comparison interface, Reference page)
-- [ ] **Stage 1.5**: Reference Audio Support
-- [ ] **Stage 2**: Pairing Logic (Tournament system)
-- [ ] **Stage 3**: Comparison UI Logic (A/B playback)
-- [ ] **Stage 4**: Scoring & Ranking
-- [ ] **Stage 5**: Visualization
-- [ ] **Stage 6**: History & Export
-- [ ] **Stage 7**: Polishing
-- [ ] **Stage 8**: Publishing
