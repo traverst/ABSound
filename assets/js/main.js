@@ -72,25 +72,10 @@ class Tournament {
     }
 
     initializeState() {
-        const randomStart = this.samples[Math.floor(Math.random() * this.samples.length)];
-
-        // Calculate initial max distance for this specific start point
-        // This ensures Coverage starts at 0% regardless of where we start
-        let maxDist = 0;
-        this.samples.forEach(s => {
-            if (s.id !== randomStart.id) {
-                const d = this.getDistance(randomStart.id, s.id);
-                if (d > maxDist) maxDist = d;
-            }
-        });
-
         return {
             phase: 'explore',
-            champion: randomStart.id,
             matchesPlayed: 0,
             phaseMatches: 0,
-            consecutiveWins: 0,
-            initialMaxDist: maxDist, // Store baseline for coverage metric
             history: [],
             currentMatch: null,
             candidates: [],
@@ -105,39 +90,10 @@ class Tournament {
 
         // Basic validation
         const validIds = new Set(this.samples.map(s => s.id));
-        if (!state.champion || !validIds.has(state.champion)) return null;
 
         // Ensure new fields exist if loading old state
         if (!state.phase) state.phase = 'explore';
         if (typeof state.phaseMatches === 'undefined') state.phaseMatches = state.matchesPlayed;
-        if (typeof state.consecutiveWins === 'undefined') state.consecutiveWins = 0;
-
-        // Backfill initialMaxDist if missing
-        if (!state.initialMaxDist) {
-            // If we are at the start (or close to it), recalculate based on current champion
-            // This fixes the issue where falling back to global maxDistance caused a 30% start
-            if (state.matchesPlayed === 0) {
-                let maxDist = 0;
-                this.samples.forEach(s => {
-                    if (s.id !== state.champion) {
-                        const d = this.getDistance(state.champion, s.id);
-                        if (d > maxDist) maxDist = d;
-                    }
-                });
-                state.initialMaxDist = maxDist;
-            } else {
-                // If we are mid-game, we have to guess. 
-                // Using maxDistance (diameter) is safer than 0, but might skew the metric.
-                // Let's try to find the max distance from the CURRENT champion to ANY sample
-                // as a proxy for the "local universe" size.
-                let maxDist = 0;
-                this.samples.forEach(s => {
-                    const d = this.getDistance(state.champion, s.id);
-                    if (d > maxDist) maxDist = d;
-                });
-                state.initialMaxDist = maxDist;
-            }
-        }
 
         // Re-filter history for valid IDs
         if (state.history) {
@@ -181,21 +137,19 @@ class Tournament {
     }
 
     prepareShowdown() {
-        // Gather top candidates: Current Champion + Top 2 from history (by wins)
-        // This is a simplified logic; ideally we'd track "promising" ones better.
-        // For now, let's take the current champion and 3 random neighbors of it to form a bracket.
+        // Select top 8-10 performers for final round-robin verification
+        const topPerformers = this.getTopPerformers(10);
 
-        const championId = this.state.champion;
-        const candidates = this.samples.filter(s => s.id !== championId);
+        if (topPerformers.length < 2) {
+            // Fallback: if not enough data, use random samples
+            topPerformers.push(...this.samples.slice(0, Math.min(8, this.samples.length)));
+        }
 
-        // Sort by closeness to champion
-        candidates.sort((a, b) => this.getDistance(championId, a.id) - this.getDistance(championId, b.id));
-
-        // Take top 3 closest + champion = 4 finalists
-        const finalists = [championId, candidates[0].id, candidates[1].id, candidates[2].id];
+        // Take up to 10 finalists
+        const finalists = topPerformers.slice(0, Math.min(10, topPerformers.length)).map(s => s.id);
         this.state.candidates = finalists;
 
-        // Create Round Robin for these 4
+        // Create Round Robin for all finalists
         const queue = [];
         for (let i = 0; i < finalists.length; i++) {
             for (let j = i + 1; j < finalists.length; j++) {
@@ -210,37 +164,112 @@ class Tournament {
         this.state.showdownQueue = queue;
     }
 
-    getChallenger() {
-        const championId = this.state.champion;
+    getTopPerformers(count = 10) {
+        // Calculate scores for all samples based on match history
+        const scores = {};
 
-        // Filter out recent matches to avoid repetition
-        const recentHistory = this.state.history.slice(-10);
-        const recentlyPlayed = new Set(
-            recentHistory
-                .filter(m => m.a === championId || m.b === championId)
-                .map(m => m.a === championId ? m.b : m.a)
-        );
+        this.samples.forEach(s => {
+            scores[s.id] = { id: s.id, sample: s, wins: 0, losses: 0, ties: 0, score: 0 };
+        });
 
-        const candidates = this.samples.filter(s => s.id !== championId && !recentlyPlayed.has(s.id));
+        this.state.history.forEach(match => {
+            if (!scores[match.a] || !scores[match.b]) return;
 
-        if (candidates.length === 0) return this.samples.find(s => s.id !== championId);
+            if (match.winner === 'tie') {
+                scores[match.a].ties++;
+                scores[match.b].ties++;
+            } else if (match.winner === match.a) {
+                scores[match.a].wins++;
+                scores[match.b].losses++;
+            } else if (match.winner === match.b) {
+                scores[match.b].wins++;
+                scores[match.a].losses++;
+            }
+        });
 
-        if (this.state.phase === 'explore') {
-            // Farthest Point Sampling
-            candidates.sort((a, b) => this.getDistance(championId, b.id) - this.getDistance(championId, a.id));
-            // Top 10% furthest
-            const poolSize = Math.max(1, Math.floor(candidates.length * 0.1));
-            return candidates[Math.floor(Math.random() * poolSize)];
+        // Calculate final scores (wins + ties*0.5)
+        Object.values(scores).forEach(s => {
+            s.score = s.wins + (s.ties * 0.5);
+        });
+
+        // Return top N performers
+        return Object.values(scores)
+            .filter(s => s.wins + s.losses + s.ties > 0) // Only samples that have been tested
+            .sort((a, b) => b.score - a.score)
+            .slice(0, count)
+            .map(s => s.sample);
+    }
+
+    generateExplorePair() {
+        // Phase 1: Generate diverse random pairs across parameter space
+        // Avoid recently tested pairs
+        const recentPairs = this.state.history.slice(-20).map(m => `${m.a}_${m.b}`);
+        const recentPairsReverse = this.state.history.slice(-20).map(m => `${m.b}_${m.a}`);
+        const recentSet = new Set([...recentPairs, ...recentPairsReverse]);
+
+        let attempts = 0;
+        while (attempts < 50) {
+            const a = this.samples[Math.floor(Math.random() * this.samples.length)];
+            const b = this.samples[Math.floor(Math.random() * this.samples.length)];
+
+            if (a.id !== b.id && !recentSet.has(`${a.id}_${b.id}`)) {
+                return { a: a.id, b: b.id };
+            }
+            attempts++;
         }
-        else if (this.state.phase === 'refine') {
-            // Nearest Neighbor
-            candidates.sort((a, b) => this.getDistance(championId, a.id) - this.getDistance(championId, b.id));
-            // Top 5 closest
-            const poolSize = Math.min(5, candidates.length);
-            return candidates[Math.floor(Math.random() * poolSize)];
+
+        // Fallback: just return any two different samples
+        const a = this.samples[0];
+        const b = this.samples[1];
+        return { a: a.id, b: b.id };
+    }
+
+    generateRefinePair() {
+        // Phase 2: Focus on samples near top performers
+        const topPerformers = this.getTopPerformers(15);
+
+        if (topPerformers.length < 2) {
+            // Fallback to explore if not enough data
+            return this.generateExplorePair();
         }
 
-        return candidates[0]; // Fallback
+        // Find samples near top performers (within similar parameter ranges)
+        const topRegion = [];
+        topPerformers.forEach(top => {
+            this.samples.forEach(s => {
+                const dist = this.getDistance(top.id, s.id);
+                // Include samples within 30% of max distance from top performers
+                if (dist < this.maxDistance * 0.3) {
+                    topRegion.push(s);
+                }
+            });
+        });
+
+        // Remove duplicates
+        const uniqueRegion = [...new Map(topRegion.map(s => [s.id, s])).values()];
+
+        if (uniqueRegion.length < 2) {
+            return this.generateExplorePair();
+        }
+
+        // Generate pair from this region, avoiding recent pairs
+        const recentPairs = this.state.history.slice(-20).map(m => `${m.a}_${m.b}`);
+        const recentPairsReverse = this.state.history.slice(-20).map(m => `${m.b}_${m.a}`);
+        const recentSet = new Set([...recentPairs, ...recentPairsReverse]);
+
+        let attempts = 0;
+        while (attempts < 50) {
+            const a = uniqueRegion[Math.floor(Math.random() * uniqueRegion.length)];
+            const b = uniqueRegion[Math.floor(Math.random() * uniqueRegion.length)];
+
+            if (a.id !== b.id && !recentSet.has(`${a.id}_${b.id}`)) {
+                return { a: a.id, b: b.id };
+            }
+            attempts++;
+        }
+
+        // Fallback
+        return { a: uniqueRegion[0].id, b: uniqueRegion[1].id };
     }
 
     getNextMatch() {
@@ -248,27 +277,43 @@ class Tournament {
 
         if (this.state.currentMatch) return this.state.currentMatch;
 
-        // Showdown Logic
+        // Showdown Logic - keep generating matches between top candidates
         if (this.state.phase === 'showdown') {
             const nextShowdown = this.state.showdownQueue.find(m => !m.winner);
             if (!nextShowdown) {
-                this.nextPhase(); // Auto-complete if done
-                return null;
+                // Instead of auto-completing, generate a new round of showdown matches
+                // This allows continued testing
+                this.prepareShowdown();
+                const newMatch = this.state.showdownQueue.find(m => !m.winner);
+                if (newMatch) {
+                    this.state.currentMatch = { ...newMatch, timestamp: null };
+                    this.saveState();
+                    return this.state.currentMatch;
+                }
+                // If still no match, fall through to generate regular match
+            } else {
+                // Clone it to currentMatch
+                this.state.currentMatch = { ...nextShowdown, timestamp: null };
+                this.saveState();
+                return this.state.currentMatch;
             }
-            // Clone it to currentMatch
-            this.state.currentMatch = { ...nextShowdown, timestamp: null };
-            this.saveState();
-            return this.state.currentMatch;
         }
 
-        // Explore/Refine Logic
-        const challenger = this.getChallenger();
-        if (!challenger) return null;
+        // Phase 1 (Explore) and Phase 2 (Refine) Logic - True AB Testing
+        let pair;
+        if (this.state.phase === 'explore') {
+            pair = this.generateExplorePair();
+        } else if (this.state.phase === 'refine') {
+            pair = this.generateRefinePair();
+        } else {
+            // Fallback
+            pair = this.generateExplorePair();
+        }
 
         const match = {
-            id: `${this.state.phase}_${this.state.champion}_vs_${challenger.id}_${Date.now()}`,
-            a: this.state.champion,
-            b: challenger.id,
+            id: `${this.state.phase}_${pair.a}_vs_${pair.b}_${Date.now()}`,
+            a: pair.a,
+            b: pair.b,
             winner: null,
             timestamp: null
         };
@@ -285,19 +330,9 @@ class Tournament {
         match.winner = winnerId;
         match.timestamp = Date.now();
 
-        // Update Champion (Only in Explore/Refine)
-        if (this.state.phase !== 'showdown') {
-            if (winnerId !== 'tie' && winnerId !== this.state.champion) {
-                this.state.champion = winnerId;
-                this.state.consecutiveWins = 0; // Reset stability
-                console.log("New Champion:", this.state.champion);
-            } else {
-                // Champion won or tied
-                this.state.consecutiveWins++;
-            }
-        } else {
-            // In showdown, update the queue entry
-            const qMatch = this.state.showdownQueue.find(m => m.id === match.id || (m.a === match.a && m.b === match.b)); // ID might differ slightly due to timestamp
+        // In showdown, update the queue entry
+        if (this.state.phase === 'showdown') {
+            const qMatch = this.state.showdownQueue.find(m => m.id === match.id || (m.a === match.a && m.b === match.b));
             if (qMatch) qMatch.winner = winnerId;
         }
 
@@ -307,66 +342,61 @@ class Tournament {
         this.state.currentMatch = null;
         this.saveState();
 
-        console.log(`Match recorded. Champion is now: ${this.state.champion}`);
+        console.log(`Match recorded. ${this.state.matchesPlayed} total matches played.`);
     }
 
     getMetric() {
-        if (this.state.phase === 'explore') {
-            // New Logic: Global Coverage (MaxMin Distance)
-            // 1. Identify all "played" samples (History + Current Champion)
-            // 2. For every "unplayed" sample, find dist to nearest "played".
-            // 3. The MAX of those nearest distances is the "hole" size.
-            // 4. Confidence = 1 - (HoleSize / MaxDistance)
+        // Cumulative confidence metric that reflects total testing done
+        // This should generally increase over time and NOT reset when continuing testing
 
-            const playedIds = new Set();
-            playedIds.add(this.state.champion);
-            this.state.history.forEach(m => {
-                playedIds.add(m.a);
-                playedIds.add(m.b);
-            });
+        // Component 1: Coverage - How much of the parameter space have we explored?
+        const playedIds = new Set();
+        playedIds.add(this.state.champion);
+        this.state.history.forEach(m => {
+            playedIds.add(m.a);
+            playedIds.add(m.b);
+        });
 
-            const unplayed = this.samples.filter(s => !playedIds.has(s.id));
+        const coverageRatio = playedIds.size / this.samples.length;
 
-            if (unplayed.length === 0) return 1.0;
+        // Component 2: Depth - How many comparisons have we done?
+        // Use a logarithmic scale to show diminishing returns
+        const totalComparisons = this.state.history.length;
+        const targetComparisons = this.samples.length * 2; // Target: 2 comparisons per sample
+        const depthRatio = Math.min(1, totalComparisons / targetComparisons);
 
-            let maxMinDist = 0;
-
-            // For each unplayed, find distance to nearest played
-            // Optimization: We don't need to be perfectly precise if it's too slow, 
-            // but for <2000 samples it's fine.
-            unplayed.forEach(u => {
-                let minDist = Infinity;
-                playedIds.forEach(pId => {
-                    const d = this.getDistance(u.id, pId);
-                    if (d < minDist) minDist = d;
-                });
-                if (minDist > maxMinDist) maxMinDist = minDist;
-            });
-
-            // Normalize against global max distance
-            // If we start in the middle, maxMinDist might be ~0.5 * maxDistance, so confidence starts at 50%.
-            // To force it to start at 0, we can normalize against the INITIAL maxMinDist.
-            const denominator = this.state.initialMaxDist || this.maxDistance;
-            return Math.max(0, Math.min(1, 1 - (maxMinDist / denominator)));
-        }
-        else if (this.state.phase === 'refine') {
-            // Stability: Consecutive Wins / Target (5)
-            return Math.min(1, this.state.consecutiveWins / 5);
-        }
-        else if (this.state.phase === 'showdown') {
-            // Progress: Played / Total
+        // Component 3: Phase-specific bonus
+        let phaseBonus = 0;
+        if (this.state.phase === 'showdown') {
             const total = this.state.showdownQueue.length;
-            if (total === 0) return 0;
-            const played = this.state.showdownQueue.filter(m => m.winner).length;
-            return played / total;
+            if (total > 0) {
+                const played = this.state.showdownQueue.filter(m => m.winner).length;
+                phaseBonus = 0.1 * (played / total); // Bonus up to 10%
+            }
         }
-        return 0;
+
+        // Weighted combination: 60% coverage, 30% depth, 10% phase bonus
+        const confidence = (coverageRatio * 0.6) + (depthRatio * 0.3) + phaseBonus;
+
+        return Math.max(0, Math.min(1, confidence));
     }
 
     reset() {
         localStorage.removeItem(this.storageKey);
         this.state = this.initializeState();
         location.reload();
+    }
+
+    continueFromComplete() {
+        // Keep all history but restart the phases
+        this.state.phase = 'explore';
+        this.state.phaseMatches = 0;
+        this.state.currentMatch = null;
+        this.state.candidates = [];
+        this.state.showdownQueue = [];
+        // Keep: history, matchesPlayed
+        this.saveState();
+        console.log("Continuing testing from explore phase with existing history");
     }
 
     exportState() {
@@ -540,6 +570,18 @@ class ComparisonUI {
                 }
             });
         }
+
+        // Continue Testing Button
+        const continueBtn = document.getElementById('continue-testing-btn');
+        if (continueBtn) {
+            continueBtn.addEventListener('click', () => {
+                this.tournament.continueFromComplete();
+                this.elements.completionMsg.classList.add('hidden');
+                this.elements.phaseControl.classList.remove('hidden');
+                this.updatePhaseUI();
+                this.loadNextMatch();
+            });
+        }
     }
 
     start() {
@@ -585,6 +627,17 @@ class ComparisonUI {
             console.log("Audio URLs:", urlA, urlB);
 
             this.renderMatch(match, urlA, urlB);
+
+            // Check if confidence is very high and suggest completion
+            const confidence = this.tournament.getMetric();
+            if (confidence >= 0.95 && this.tournament.state.phase === 'showdown') {
+                // Show a subtle message suggesting completion
+                if (this.elements.paramsDisplay) {
+                    this.elements.paramsDisplay.innerHTML =
+                        '<strong style="color: #10b981;">Confidence is very high (95%+)!</strong> ' +
+                        'Further testing won\'t significantly improve results. Consider clicking "Finish" when ready.';
+                }
+            }
         } catch (error) {
             console.error("Error loading audio:", error);
             if (this.elements.paramsDisplay) {

@@ -3,7 +3,6 @@
 A static site tool to compare audio samples generated with different parameters (Exaggeration, CFG, Temperature). Built with Jekyll.
 
 ## Project Status
-- **Current Stage**: Stage 0.5 (Automatic Parameter Extraction)
 - **Goal**: A/B testing interface for voice model parameters.
 
 ## Prerequisites
